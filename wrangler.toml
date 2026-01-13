@@ -1,0 +1,16 @@
+name = "jportal-cors-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers log
+[observability]
+enabled = true
+
+# Development configuration
+[env.dev]
+name = "jportal-cors-proxy-dev"
+
+# Production configuration
+[env.production]
+name = "jportal-cors-proxy"
