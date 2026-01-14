@@ -15,7 +15,8 @@ interface Env {
 // Configuration
 const JIIT_API_BASE = "https://webportal.jiit.ac.in:6011";
 const ALLOWED_ORIGINS = [
-  "https://codeblech.github.io",  // jportal production
+  "https://yashmalik.tech",        // jportal production
+  "https://codeblech.github.io",   // jportal production
   "http://localhost:5173",         // jportal local dev
   "http://localhost:4173",         // jportal preview
   "http://127.0.0.1:5173",         // alternative local dev
