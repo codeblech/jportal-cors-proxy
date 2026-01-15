@@ -73,9 +73,10 @@ function applyCorsHeaders(res, origin) {
 
 // Root endpoint - info page
 app.get('/', (req, res) => {
+  console.log(`[${new Date().toISOString()}] Info page accessed from ${req.ip}`);
   res.json({
     service: 'JIIT Web Portal CORS Proxy',
-    version: '1.0.0',
+    version: '2.0.0',
     usage: {
       method1: '/proxy?path=/StudentPortalAPI/endpoint',
       method2: '/proxy/StudentPortalAPI/endpoint',
@@ -88,12 +89,20 @@ app.get('/', (req, res) => {
 
 // Health check endpoint for Render
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString() });
+  const healthStatus = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+  };
+  console.log(`[${healthStatus.timestamp}] Health check - uptime: ${healthStatus.uptime.toFixed(2)}s`);
+  res.status(200).json(healthStatus);
 });
 
 // OPTIONS preflight handler
 app.options('/proxy*', (req, res) => {
   const origin = req.headers.origin;
+  console.log(`[${new Date().toISOString()}] OPTIONS preflight from origin: ${origin || 'none'}`);
   applyCorsHeaders(res, origin);
   res.status(200).end();
 });
@@ -101,6 +110,13 @@ app.options('/proxy*', (req, res) => {
 // Main proxy handler
 app.all('/proxy*', async (req, res) => {
   const origin = req.headers.origin;
+  const timestamp = new Date().toISOString();
+
+  console.log(`\n[${timestamp}] ===== Incoming Request =====`);
+  console.log(`Method: ${req.method}`);
+  console.log(`Origin: ${origin || 'none'}`);
+  console.log(`Path: ${req.path}`);
+  console.log(`Query: ${JSON.stringify(req.query)}`);
 
   try {
     // Extract the target path from query parameter or path
@@ -119,6 +135,7 @@ app.all('/proxy*', async (req, res) => {
     }
 
     if (!targetPath) {
+      console.log(`[${timestamp}] ERROR: Missing target path`);
       applyCorsHeaders(res, origin);
       return res.status(400).send('Missing target path. Use ?path=/StudentPortalAPI/... or /proxy/StudentPortalAPI/...');
     }
@@ -130,9 +147,11 @@ app.all('/proxy*', async (req, res) => {
 
     // Construct the full JIIT API URL
     const targetUrl = `${JIIT_API_BASE}${targetPath}`;
+    console.log(`Target URL: ${targetUrl}`);
 
     // Validate it's a JIIT URL (security check)
     if (!isValidJiitUrl(targetUrl)) {
+      console.log(`[${timestamp}] ERROR: Invalid JIIT URL - ${targetUrl}`);
       applyCorsHeaders(res, origin);
       return res.status(403).send('Invalid target URL. Only JIIT API endpoints are allowed.');
     }
@@ -146,9 +165,11 @@ app.all('/proxy*', async (req, res) => {
     // Forward custom headers
     if (req.headers['authorization']) {
       proxyHeaders['Authorization'] = req.headers['authorization'];
+      console.log(`Authorization header present: ${req.headers['authorization'].substring(0, 20)}...`);
     }
     if (req.headers['localname']) {
       proxyHeaders['LocalName'] = req.headers['localname'];
+      console.log(`LocalName header present: ${req.headers['localname'].substring(0, 20)}...`);
     }
 
     // Prepare fetch options
@@ -160,15 +181,20 @@ app.all('/proxy*', async (req, res) => {
     // Add body for POST requests
     if (req.method === 'POST' && req.body) {
       fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      console.log(`Body length: ${fetchOptions.body.length} bytes`);
     }
 
-    console.log(`[${new Date().toISOString()}] ${req.method} ${targetUrl}`);
+    console.log(`[${timestamp}] Forwarding to JIIT API...`);
 
     // Make the request to JIIT API
     const response = await fetch(targetUrl, fetchOptions);
 
+    console.log(`[${timestamp}] Response from JIIT: ${response.status} ${response.statusText}`);
+    console.log(`Response headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}`);
+
     // Get response body
     const responseText = await response.text();
+    console.log(`Response body length: ${responseText.length} bytes`);
 
     // Apply CORS headers
     applyCorsHeaders(res, origin);
@@ -182,9 +208,15 @@ app.all('/proxy*', async (req, res) => {
 
     // Send response
     res.status(response.status).send(responseText);
+    console.log(`[${timestamp}] ===== Request Complete =====\n`);
 
   } catch (error) {
-    console.error('Proxy error:', error);
+    console.error(`[${timestamp}] ===== Proxy Error =====`);
+    console.error(`Error type: ${error.constructor.name}`);
+    console.error(`Error message: ${error.message}`);
+    console.error(`Error stack: ${error.stack}`);
+    console.error(`===== End Error =====\n`);
+
     applyCorsHeaders(res, origin);
     res.status(502).send(`Proxy error: ${error.message || 'Unknown error'}`);
   }
@@ -192,12 +224,20 @@ app.all('/proxy*', async (req, res) => {
 
 // 404 handler
 app.use((req, res) => {
+  console.log(`[${new Date().toISOString()}] 404 Not Found: ${req.method} ${req.path}`);
   res.status(404).send('Not Found');
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
+  const timestamp = new Date().toISOString();
+  console.error(`[${timestamp}] ===== Server Error =====`);
+  console.error(`Path: ${req.method} ${req.path}`);
+  console.error(`Error type: ${err.constructor.name}`);
+  console.error(`Error message: ${err.message}`);
+  console.error(`Error stack: ${err.stack}`);
+  console.error(`===== End Server Error =====\n`);
+
   const origin = req.headers.origin;
   applyCorsHeaders(res, origin);
   res.status(500).send('Internal Server Error');
@@ -205,8 +245,23 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`JIIT CORS Proxy Server running on port ${PORT}`);
+  console.log('\n='.repeat(60));
+  console.log('JIIT CORS Proxy Server - STARTED');
+  console.log('='.repeat(60));
+  console.log(`Timestamp: ${new Date().toISOString()}`);
+  console.log(`Port: ${PORT}`);
   console.log(`Target API: ${JIIT_API_BASE}`);
-  console.log(`Allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Node version: ${process.version}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('\nAllowed Origins:');
+  ALLOWED_ORIGINS.forEach((origin, index) => {
+    console.log(`  ${index + 1}. ${origin}`);
+  });
+  console.log('\nEndpoints:');
+  console.log(`  GET  /           - Service info`);
+  console.log(`  GET  /health     - Health check`);
+  console.log(`  *    /proxy/*    - JIIT API proxy`);
+  console.log('\n' + '='.repeat(60));
+  console.log('Server is ready to accept connections');
+  console.log('='.repeat(60) + '\n');
 });
