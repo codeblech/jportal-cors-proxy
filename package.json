@@ -5,8 +5,12 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
+    "dev:hono": "wrangler dev --env hono",
     "deploy": "wrangler deploy",
-    "tail": "wrangler tail"
+    "deploy:hono": "wrangler deploy --env hono",
+    "deploy:all": "wrangler deploy && wrangler deploy --env hono",
+    "tail": "wrangler tail",
+    "tail:hono": "wrangler tail --env hono"
   },
   "keywords": [
     "cors",
@@ -17,6 +21,9 @@
   ],
   "author": "codeblech",
   "license": "MIT",
+  "dependencies": {
+    "hono": "^4.11.4"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
     "wrangler": "^3.94.0"
