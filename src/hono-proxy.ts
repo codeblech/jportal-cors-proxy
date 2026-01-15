@@ -119,23 +119,35 @@ app.all("*", async (c) => {
   const body =
     method === "GET" || method === "HEAD" ? undefined : req.body;
 
-  const upstreamRes = await fetch(upstreamUrl.toString(), {
-    method,
-    headers: outHeaders,
-    body,
-    redirect: "manual",
-  });
+  try {
+    const upstreamRes = await fetch(upstreamUrl.toString(), {
+      method,
+      headers: outHeaders,
+      body,
+      redirect: "manual",
+    });
 
-  // Copy & sanitize response headers
-  const resHeaders = new Headers(upstreamRes.headers);
-  for (const h of STRIP_RES_HEADERS) resHeaders.delete(h);
-  withCors(resHeaders, req.headers.get("origin"));
+    // Copy & sanitize response headers
+    const resHeaders = new Headers(upstreamRes.headers);
+    for (const h of STRIP_RES_HEADERS) resHeaders.delete(h);
+    withCors(resHeaders, req.headers.get("origin"));
 
-  return new Response(upstreamRes.body, {
-    status: upstreamRes.status,
-    statusText: upstreamRes.statusText,
-    headers: resHeaders,
-  });
+    return new Response(upstreamRes.body, {
+      status: upstreamRes.status,
+      statusText: upstreamRes.statusText,
+      headers: resHeaders,
+    });
+  } catch (err) {
+    const errorHeaders = withCors(
+      new Headers({ "Content-Type": "application/json" }),
+      req.headers.get("origin")
+    );
+
+    return new Response(
+      JSON.stringify({ error: "Upstream request failed" }),
+      { status: 502, headers: errorHeaders }
+    );
+  }
 });
 
 export default app;
