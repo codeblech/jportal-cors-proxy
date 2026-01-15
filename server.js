@@ -163,7 +163,9 @@ app.all('/proxy*', async (req, res) => {
     // Prepare headers for the proxied request
     const proxyHeaders = {
       'Content-Type': req.headers['content-type'] || 'application/json',
-      'Origin': JIIT_API_BASE, // Make JIIT think this is same-origin
+      'Origin': 'https://webportal.jiit.ac.in:6011', // Make JIIT think this is same-origin (just origin, no path)
+      'Referer': 'https://webportal.jiit.ac.in:6011/', // Add referer to look more legitimate
+      'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', // Forward user agent
     };
 
     // Forward custom headers
@@ -175,6 +177,9 @@ app.all('/proxy*', async (req, res) => {
       proxyHeaders['LocalName'] = req.headers['localname'];
       console.log(`LocalName header present: ${req.headers['localname'].substring(0, 20)}...`);
     }
+
+    console.log(`Headers being sent to JIIT:`);
+    console.log(JSON.stringify(proxyHeaders, null, 2));
 
     // Prepare fetch options
     const fetchOptions = {
@@ -210,6 +215,13 @@ app.all('/proxy*', async (req, res) => {
     // Get response body
     const responseText = await response.text();
     console.log(`Response body length: ${responseText.length} bytes`);
+
+    // Log response body for debugging (especially for errors)
+    if (response.status >= 400 || responseText.length < 500) {
+      console.log(`Response body: ${responseText}`);
+    } else {
+      console.log(`Response body preview: ${responseText.substring(0, 200)}...`);
+    }
 
     // Apply CORS headers
     applyCorsHeaders(res, origin);
