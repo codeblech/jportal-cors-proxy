@@ -1,3 +1,12 @@
+# JIIT Portal Proxy - Cloudflare Workers
+# This repo contains two proxy implementations:
+# 1. cors-proxy (default): Uses /proxy prefix (/proxy/StudentPortalAPI/...)
+# 2. hono-proxy: Direct path mapping (/StudentPortalAPI/...) with Hono framework
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Default: CORS Proxy
+# Deploy with: npx wrangler deploy
+# ─────────────────────────────────────────────────────────────────────────────
 name = "jportal-cors-proxy"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
@@ -14,3 +23,14 @@ name = "jportal-cors-proxy-dev"
 # Production configuration
 [env.production]
 name = "jportal-cors-proxy"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Alternative: Hono Proxy
+# Deploy with: npx wrangler deploy --env hono
+# Dev with: npx wrangler dev --env hono
+# ─────────────────────────────────────────────────────────────────────────────
+[env.hono]
+name = "jportal-hono-proxy"
+main = "src/hono-proxy.ts"
+compatibility_flags = ["nodejs_compat"]
+

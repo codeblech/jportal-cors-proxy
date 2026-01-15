@@ -2,6 +2,18 @@
 
 A Cloudflare Worker that acts as a CORS proxy specifically for the JIIT Web Portal API. This proxy enables the [jportal](https://github.com/codeblech/jportal) frontend to bypass CORS restrictions that were recently implemented by JIIT's backend.
 
+## Proxy Variants
+
+This repo contains **two proxy implementations**:
+
+| Variant | Path Style | Source | Deploy Command |
+|---------|------------|--------|----------------|
+| **CORS Proxy** (default) | `/proxy/StudentPortalAPI/...` | `src/index.ts` | `npm run deploy` |
+| **Hono Proxy** | `/StudentPortalAPI/...` | `src/hono-proxy.ts` | `npm run deploy:hono` |
+
+**CORS Proxy**: Uses `/proxy` prefix, info endpoint at `/`, flexible path formats.  
+**Hono Proxy**: Direct path mapping with header spoofing (Hono framework).
+
 ## Why This Exists
 
 JIIT recently added CORS restrictions to their Web Portal API (`webportal.jiit.ac.in:6011`) that only allow same-origin requests. This breaks third-party frontends like jportal that are hosted on different domains (e.g., GitHub Pages).
@@ -51,7 +63,14 @@ This prevents abuse of the worker as an open proxy.
 
 4. **Deploy to Cloudflare Workers**
    ```bash
+   # Deploy CORS proxy (default)
    npm run deploy
+
+   # Deploy Hono proxy
+   npm run deploy:hono
+
+   # Deploy both
+   npm run deploy:all
    ```
 
    This will deploy the worker and give you a URL like:
@@ -189,7 +208,11 @@ The proxy sets:
 ### Local Development
 
 ```bash
+# CORS proxy (default)
 npm run dev
+
+# Hono proxy
+npm run dev:hono
 ```
 
 This starts a local development server at `http://localhost:8787`.
@@ -197,7 +220,11 @@ This starts a local development server at `http://localhost:8787`.
 ### View Logs
 
 ```bash
+# CORS proxy
 npm run tail
+
+# Hono proxy
+npm run tail:hono
 ```
 
 ### Testing
