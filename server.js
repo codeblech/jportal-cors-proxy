@@ -18,7 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Configuration
-const JIIT_API_BASE = process.env.JIIT_API_BASE || "https://webportal.jiit.ac.in:6011/StudentPortalAPI/";
+const JIIT_API_BASE = process.env.JIIT_API_BASE || "https://webportal.jiit.ac.in:6011/StudentPortalAPI";
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ||
   "https://yashmalik.tech,https://codeblech.github.io,http://localhost:5173,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:4173"
 ).split(',');
