@@ -1,6 +1,6 @@
 # JPortal CORS Proxy
 
-A Cloudflare Worker that acts as a CORS proxy specifically for the JIIT Web Portal API. This proxy enables the [jportal](https://github.com/codeblech/jportal) frontend to bypass CORS restrictions that were recently implemented by JIIT's backend.
+A Node.js/Express server that acts as a CORS proxy specifically for the JIIT Web Portal API. This proxy enables the [jportal](https://github.com/codeblech/jportal) frontend to bypass CORS restrictions that were recently implemented by JIIT's backend.
 
 ## Why This Exists
 
@@ -8,11 +8,19 @@ JIIT recently added CORS restrictions to their Web Portal API (`webportal.jiit.a
 
 The official JIIT portal works because it's served from the same origin as the API. Third-party apps see `sec-fetch-site: cross-origin` headers that the backend rejects. Since these `sec-fetch-*` headers are controlled by the browser and cannot be modified by JavaScript, we need a proxy server.
 
-This worker:
+This proxy:
 - Receives requests from the jportal frontend
 - Forwards them to the JIIT API with the correct `Origin` header
 - Returns responses with proper CORS headers
 - Is locked down to only proxy JIIT API requests (security)
+
+## Why Node.js Instead of Cloudflare Workers?
+
+**TLDR**: Cloudflare Workers cannot proxy to custom ports.
+
+JIIT's API runs on port `6011` (`https://webportal.jiit.ac.in:6011`). Cloudflare Workers strip custom ports from URLs and only support standard ports (80/443). This makes them unsuitable for this use case.
+
+See `cloudflare/README.md` for details on why the Cloudflare Worker implementation doesn't work.
 
 ## Security
 
@@ -21,54 +29,105 @@ This proxy is **locked down** and only allows:
 - Requests from whitelisted origins (jportal domains)
 - Standard HTTP methods: GET, POST, HEAD, OPTIONS
 
-This prevents abuse of the worker as an open proxy.
+This prevents abuse of the proxy as an open proxy.
 
-## Deployment
+## Deployment to Render
 
 ### Prerequisites
 
-1. A Cloudflare account (free tier works)
-2. Node.js 18+ installed
-3. Wrangler CLI (Cloudflare Workers CLI)
+1. A [Render](https://render.com) account (free tier works)
+2. A GitHub account
+3. This repository pushed to your GitHub
 
-### Steps
+### Automatic Deployment (Recommended)
 
-1. **Clone this repository**
+1. **Push to GitHub**
    ```bash
    git clone https://github.com/codeblech/jportal-cors-proxy.git
    cd jportal-cors-proxy
+   git remote set-url origin https://github.com/YOUR-USERNAME/jportal-cors-proxy.git
+   git push -u origin main
    ```
 
-2. **Install dependencies**
+2. **Deploy to Render**
+   - Go to [Render Dashboard](https://dashboard.render.com/)
+   - Click "New +" → "Web Service"
+   - Connect your GitHub repository
+   - Render will automatically detect `render.yaml` and configure everything
+   - Click "Create Web Service"
+
+3. **Your proxy URL**
+   - Render will provide a URL like: `https://jportal-cors-proxy.onrender.com`
+   - Save this URL for configuring jportal
+
+### Manual Deployment
+
+If you prefer manual configuration:
+
+1. **Create New Web Service** on Render
+2. **Configure**:
+   - **Name**: `jportal-cors-proxy`
+   - **Region**: Singapore (or closest to India)
+   - **Branch**: `main`
+   - **Runtime**: Node
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Plan**: Free
+
+3. **Environment Variables**:
+   - `NODE_ENV`: `production`
+   - `JIIT_API_BASE`: `https://webportal.jiit.ac.in:6011`
+   - `ALLOWED_ORIGINS`: `https://yashmalik.tech,https://codeblech.github.io,http://localhost:5173`
+
+4. **Health Check**:
+   - Path: `/health`
+
+5. **Deploy**
+
+## Local Development
+
+### Setup
+
+1. **Clone and install**
    ```bash
+   git clone https://github.com/codeblech/jportal-cors-proxy.git
+   cd jportal-cors-proxy
    npm install
    ```
 
-3. **Login to Cloudflare**
+2. **Create `.env` file**
    ```bash
-   npx wrangler login
+   cp .env.example .env
    ```
 
-4. **Deploy to Cloudflare Workers**
+3. **Start development server**
    ```bash
-   npm run deploy
+   npm run dev
    ```
 
-   This will deploy the worker and give you a URL like:
-   ```
-   https://jportal-cors-proxy.<your-subdomain>.workers.dev
-   ```
+   Server will run at `http://localhost:3000`
 
-5. **Update jportal configuration**
+### Testing
 
-   In your jportal frontend, update the jsjiit API base URL to point to your worker:
+Test the proxy:
 
-   Instead of:
-   ```javascript
-   const portal = new WebPortal();
-   ```
+```bash
+# Health check
+curl http://localhost:3000/health
 
-   You'll need to modify jsjiit's base URL or intercept requests. See [Usage](#usage) below.
+# Info endpoint
+curl http://localhost:3000/
+
+# Test proxied request (example: token generation)
+curl -X POST http://localhost:3000/proxy/StudentPortalAPI/token/generate \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:5173" \
+  -d '{
+    "username": "your-enrollment",
+    "password": "your-password",
+    "memberType": "S"
+  }'
+```
 
 ## Usage
 
@@ -78,12 +137,12 @@ The proxy supports two URL formats:
 
 **Method 1: Query parameter**
 ```
-https://your-worker.workers.dev/proxy?path=/StudentPortalAPI/token/generate
+https://your-proxy.onrender.com/proxy?path=/StudentPortalAPI/token/generate
 ```
 
 **Method 2: Path-based**
 ```
-https://your-worker.workers.dev/proxy/StudentPortalAPI/token/generate
+https://your-proxy.onrender.com/proxy/StudentPortalAPI/token/generate
 ```
 
 ### Example: Token Generation
@@ -102,7 +161,7 @@ Content-Type: application/json
 
 **Through the proxy:**
 ```javascript
-POST https://your-worker.workers.dev/proxy/StudentPortalAPI/token/generate
+POST https://your-proxy.onrender.com/proxy/StudentPortalAPI/token/generate
 Content-Type: application/json
 
 {
@@ -112,112 +171,18 @@ Content-Type: application/json
 }
 ```
 
-### Integrating with jsjiit
+### Integrating with jportal
 
-The jsjiit library hardcodes the JIIT API URL. You have two options:
+Update jportal to use the proxy URL when creating WebPortal instances:
 
-**Option A: Fork jsjiit and modify the base URL**
-
-1. Fork [jsjiit](https://github.com/codeblech/jsjiit)
-2. Change the `API_URL` constant in `src/wrapper.js`:
-   ```javascript
-   const API_URL = "https://your-worker.workers.dev/proxy";
-   ```
-3. Build and use your modified version
-
-**Option B: Use a module bundler to replace the URL**
-
-If using Vite (like jportal), add this to `vite.config.js`:
 ```javascript
-export default {
-  define: {
-    'https://webportal.jiit.ac.in:6011/StudentPortalAPI':
-      JSON.stringify('https://your-worker.workers.dev/proxy/StudentPortalAPI')
-  }
-}
+const portal = new WebPortal({
+  useProxy: true,
+  proxyUrl: 'https://your-proxy.onrender.com'  // Your Render proxy URL
+});
 ```
 
-**Option C: Patch at runtime (not recommended)**
-
-Intercept fetch calls globally (fragile, not recommended):
-```javascript
-const originalFetch = window.fetch;
-window.fetch = function(...args) {
-  let url = args[0];
-  if (typeof url === 'string' && url.includes('webportal.jiit.ac.in:6011')) {
-    url = url.replace(
-      'https://webportal.jiit.ac.in:6011',
-      'https://your-worker.workers.dev/proxy'
-    );
-    args[0] = url;
-  }
-  return originalFetch.apply(this, args);
-};
-```
-
-## Configuration
-
-### Allowed Origins
-
-The worker whitelist origins are defined in `src/index.ts`:
-
-```typescript
-const ALLOWED_ORIGINS = [
-  "https://codeblech.github.io",  // jportal production
-  "http://localhost:5173",         // jportal local dev
-  "http://localhost:4173",         // jportal preview
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:4173",
-];
-```
-
-Add your custom domain if you host jportal elsewhere.
-
-### Preserved Headers
-
-The proxy forwards all headers from the original request, including:
-- `Content-Type`
-- `Authorization` (Bearer tokens)
-- `LocalName` (custom JIIT header)
-
-The proxy sets:
-- `Origin: https://webportal.jiit.ac.in:6011` (to make JIIT think it's same-origin)
-- Removes `Host` header (set automatically by fetch)
-
-## Development
-
-### Local Development
-
-```bash
-npm run dev
-```
-
-This starts a local development server at `http://localhost:8787`.
-
-### View Logs
-
-```bash
-npm run tail
-```
-
-### Testing
-
-Test the proxy with curl:
-
-```bash
-# Test the info endpoint
-curl https://your-worker.workers.dev/
-
-# Test a proxied request (example: token generation)
-curl -X POST https://your-worker.workers.dev/proxy/StudentPortalAPI/token/generate \
-  -H "Content-Type: application/json" \
-  -H "Origin: https://codeblech.github.io" \
-  -d '{
-    "username": "your-enrollment",
-    "password": "your-password",
-    "memberType": "S"
-  }'
-```
+See [jsjiit documentation](https://github.com/codeblech/jsjiit) for more details.
 
 ## Architecture
 
@@ -230,23 +195,23 @@ curl -X POST https://your-worker.workers.dev/proxy/StudentPortalAPI/token/genera
          │ (cross-origin)
          ▼
 ┌─────────────────────┐
-│  Cloudflare Worker  │
-│  CORS Proxy         │
+│  Node.js/Express    │
+│  Render Web Service │
 └────────┬────────────┘
-         │ Same-origin request
+         │ Request to port 6011
          │ (Origin header set)
          ▼
 ┌─────────────────────┐
 │   JIIT Web Portal   │
-│   Backend API       │
+│   Backend API:6011  │
 └─────────────────────┘
 ```
 
 ## How It Works
 
-1. **Client Request**: jportal makes a request to the worker (e.g., `worker.dev/proxy/StudentPortalAPI/token/generate`)
+1. **Client Request**: jportal makes a request to the proxy (e.g., `render.com/proxy/StudentPortalAPI/token/generate`)
 
-2. **Worker Processing**:
+2. **Proxy Processing**:
    - Validates the request origin is whitelisted
    - Validates the target URL is a JIIT API endpoint
    - Creates a new request to JIIT with:
@@ -254,11 +219,11 @@ curl -X POST https://your-worker.workers.dev/proxy/StudentPortalAPI/token/genera
      - `Origin: https://webportal.jiit.ac.in:6011` header (makes it appear same-origin)
 
 3. **JIIT API**:
-   - Sees `sec-fetch-site: same-origin` (because request comes from Cloudflare, not browser)
+   - Sees `sec-fetch-site: same-origin` (because request comes from server, not browser)
    - Processes the request normally
    - Returns response
 
-4. **Worker Response**:
+4. **Proxy Response**:
    - Receives JIIT response
    - Adds CORS headers (`Access-Control-Allow-Origin`, etc.)
    - Returns to jportal
@@ -267,18 +232,19 @@ curl -X POST https://your-worker.workers.dev/proxy/StudentPortalAPI/token/genera
 
 ## Cost
 
-Cloudflare Workers free tier includes:
-- 100,000 requests per day
-- 10ms CPU time per request
+Render's free tier includes:
+- 750 hours per month (enough for 24/7 operation)
+- Automatic sleep after 15 minutes of inactivity
+- Automatic wake on request
 
-For a student portal app, this is more than sufficient. The worker is very lightweight and uses minimal CPU time per request.
+For a student portal proxy, the free tier is sufficient.
 
 ## Security Considerations
 
 1. **Whitelisted Origins**: Only requests from known jportal domains are allowed
 2. **Locked Down Target**: Only JIIT API can be proxied
-3. **No Credential Storage**: Worker doesn't store or log credentials
-4. **HTTPS Only**: All communication is encrypted
+3. **No Credential Storage**: Proxy doesn't store or log credentials
+4. **HTTPS Only**: All communication is encrypted (Render provides free SSL)
 5. **Standard Headers**: All standard security headers are preserved
 
 ## Troubleshooting
@@ -287,18 +253,48 @@ For a student portal app, this is more than sufficient. The worker is very light
 - Make sure your request path starts with `/StudentPortalAPI`
 - Check that you're using the correct proxy URL format
 
-### "CORS policy" error in browser
-- Verify your origin is in the `ALLOWED_ORIGINS` list
-- Redeploy the worker after making changes
-
 ### "502 Bad Gateway" error
 - JIIT's backend might be down
 - Check JIIT portal availability at https://webportal.jiit.ac.in:6011
+- Proxy might be sleeping (Render free tier) - retry after a few seconds
 
-### Worker not deploying
-- Make sure you're logged in: `npx wrangler login`
-- Check `wrangler.toml` configuration
-- Verify your Cloudflare account has Workers enabled
+### CORS errors still occurring
+- Verify your origin is in the `ALLOWED_ORIGINS` list
+- Check proxy logs on Render dashboard
+- Ensure you're using the correct proxy URL in jportal
+
+### Proxy is slow
+- Render free tier sleeps after 15 minutes of inactivity
+- First request after sleep takes 30-60 seconds
+- Subsequent requests are fast
+- Consider upgrading to paid tier for 24/7 availability
+
+## Environment Variables
+
+Create a `.env` file (see `.env.example`):
+
+```bash
+PORT=3000                          # Server port (Render provides this automatically)
+JIIT_API_BASE=https://webportal.jiit.ac.in:6011  # JIIT API URL with port
+ALLOWED_ORIGINS=https://yashmalik.tech,https://codeblech.github.io  # Whitelisted origins
+```
+
+## Project Structure
+
+```
+jportal-cors-proxy/
+├── server.js              # Main Express server (Node.js proxy)
+├── package.json           # Node.js dependencies
+├── render.yaml            # Render deployment configuration
+├── .env.example           # Environment variable template
+├── .gitignore             # Git ignore rules
+├── README.md              # This file
+└── cloudflare/            # Archived Cloudflare Worker (non-functional)
+    ├── index.ts           # Original Worker code
+    ├── wrangler.toml      # Worker configuration
+    ├── tsconfig.json      # TypeScript config
+    └── README.md          # Explanation of why it doesn't work
+```
 
 ## Contributing
 
