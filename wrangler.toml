@@ -32,4 +32,5 @@ name = "jportal-cors-proxy"
 [env.hono]
 name = "jportal-hono-proxy"
 main = "src/hono-proxy.ts"
+compatibility_flags = ["nodejs_compat"]
 

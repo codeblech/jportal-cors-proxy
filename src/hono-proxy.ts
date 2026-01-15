@@ -62,10 +62,12 @@ const STRIP_RES_HEADERS = [
 ];
 
 function withCors(headers: Headers, requestOrigin?: string | null) {
-  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
-    headers.set("Access-Control-Allow-Origin", requestOrigin);
-    headers.set("Vary", "Origin");
+  // Only set CORS headers for allowed origins
+  if (!requestOrigin || !ALLOWED_ORIGINS.includes(requestOrigin)) {
+    return headers;
   }
+  headers.set("Access-Control-Allow-Origin", requestOrigin);
+  headers.set("Vary", "Origin");
   headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   headers.set(
     "Access-Control-Allow-Headers",
