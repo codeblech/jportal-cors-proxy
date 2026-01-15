@@ -58,7 +58,8 @@ function getCorsHeaders(origin) {
 function isValidJiitUrl(url) {
   try {
     const parsedUrl = new URL(url);
-    return parsedUrl.origin === JIIT_API_BASE;
+    // Check if the URL starts with JIIT_API_BASE (which may include path)
+    return url.startsWith(JIIT_API_BASE);
   } catch {
     return false;
   }
