@@ -22,6 +22,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:4173",         // jportal preview
   "http://127.0.0.1:5173",         // alternative local dev
   "http://127.0.0.1:4173",         // alternative preview
+  "https://jmut.de",
 ];
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 15000;
 
