@@ -14,15 +14,17 @@ interface Env {
 }
 
 // Default configuration (can be overridden by environment variables)
-const DEFAULT_JIIT_API_BASE = "https://webportal.jiit.ac.in:6011/StudentPortalAPI";
+const DEFAULT_JIIT_API_BASE =
+  "https://webportal.jiit.ac.in:6011/StudentPortalAPI";
 const DEFAULT_ALLOWED_ORIGINS = [
-  "https://yashmalik.tech",        // jportal production
-  "https://codeblech.github.io",   // jportal production
-  "http://localhost:5173",         // jportal local dev
-  "http://localhost:4173",         // jportal preview
-  "http://127.0.0.1:5173",         // alternative local dev
-  "http://127.0.0.1:4173",         // alternative preview
+  "https://yashmalik.tech", // jportal production
+  "https://codeblech.github.io", // jportal production
+  "http://localhost:5173", // jportal local dev
+  "http://localhost:4173", // jportal preview
+  "http://127.0.0.1:5173", // alternative local dev
+  "http://127.0.0.1:4173", // alternative preview
   "https://jmut.de",
+  "https://jportal.jmut.de",
 ];
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 15000;
 
@@ -32,9 +34,11 @@ const DEFAULT_UPSTREAM_TIMEOUT_MS = 15000;
 function getConfig(env: Env) {
   const JIIT_API_BASE = env.JIIT_API_BASE || DEFAULT_JIIT_API_BASE;
   const ALLOWED_ORIGINS = env.ALLOWED_ORIGINS
-    ? env.ALLOWED_ORIGINS.split(',')
+    ? env.ALLOWED_ORIGINS.split(",")
     : DEFAULT_ALLOWED_ORIGINS;
-  const UPSTREAM_TIMEOUT_MS = Number(env.UPSTREAM_TIMEOUT_MS || DEFAULT_UPSTREAM_TIMEOUT_MS);
+  const UPSTREAM_TIMEOUT_MS = Number(
+    env.UPSTREAM_TIMEOUT_MS || DEFAULT_UPSTREAM_TIMEOUT_MS,
+  );
 
   return { JIIT_API_BASE, ALLOWED_ORIGINS, UPSTREAM_TIMEOUT_MS };
 }
@@ -49,20 +53,28 @@ const CORS_HEADERS = {
 /**
  * Check if the request origin is allowed
  */
-function isOriginAllowed(origin: string | null, allowedOrigins: string[]): boolean {
+function isOriginAllowed(
+  origin: string | null,
+  allowedOrigins: string[],
+): boolean {
   if (!origin) return false;
-  return allowedOrigins.some(allowed => origin.startsWith(allowed));
+  return allowedOrigins.some((allowed) => origin.startsWith(allowed));
 }
 
 /**
  * Get CORS headers with the appropriate origin
  */
-function getCorsHeaders(origin: string | null, allowedOrigins: string[]): Record<string, string> {
-  const corsOrigin = isOriginAllowed(origin, allowedOrigins) ? origin : allowedOrigins[0];
+function getCorsHeaders(
+  origin: string | null,
+  allowedOrigins: string[],
+): Record<string, string> {
+  const corsOrigin = isOriginAllowed(origin, allowedOrigins)
+    ? origin
+    : allowedOrigins[0];
   return {
     ...CORS_HEADERS,
     "Access-Control-Allow-Origin": corsOrigin || "*",
-    "Vary": "Origin",
+    Vary: "Origin",
   };
 }
 
@@ -86,11 +98,18 @@ function isValidJiitUrl(url: string, apiBase: string): boolean {
 
 function buildTargetUrl(apiBase: string, targetPath: string): string {
   const base = new URL(apiBase);
-  const normalizedTargetPath = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
-  const basePath = base.pathname.endsWith("/") ? base.pathname.slice(0, -1) : base.pathname;
+  const normalizedTargetPath = targetPath.startsWith("/")
+    ? targetPath
+    : `/${targetPath}`;
+  const basePath = base.pathname.endsWith("/")
+    ? base.pathname.slice(0, -1)
+    : base.pathname;
 
   let finalPath = normalizedTargetPath;
-  if (normalizedTargetPath.startsWith(`${basePath}/`) || normalizedTargetPath === basePath) {
+  if (
+    normalizedTargetPath.startsWith(`${basePath}/`) ||
+    normalizedTargetPath === basePath
+  ) {
     finalPath = normalizedTargetPath;
   } else {
     finalPath = `${basePath}${normalizedTargetPath}`;
@@ -120,9 +139,14 @@ function serializeError(error: unknown): Record<string, unknown> {
 /**
  * Handle OPTIONS preflight requests
  */
-async function handleOptions(request: Request, allowedOrigins: string[]): Promise<Response> {
+async function handleOptions(
+  request: Request,
+  allowedOrigins: string[],
+): Promise<Response> {
   const origin = request.headers.get("Origin");
-  console.log(`[${new Date().toISOString()}] OPTIONS preflight from origin: ${origin || 'none'}`);
+  console.log(
+    `[${new Date().toISOString()}] OPTIONS preflight from origin: ${origin || "none"}`,
+  );
 
   if (
     origin &&
@@ -150,7 +174,7 @@ async function handleRequest(
   request: Request,
   apiBase: string,
   allowedOrigins: string[],
-  upstreamTimeoutMs: number
+  upstreamTimeoutMs: number,
 ): Promise<Response> {
   const origin = request.headers.get("Origin");
   const url = new URL(request.url);
@@ -158,7 +182,7 @@ async function handleRequest(
 
   console.log(`\n[${timestamp}] ===== Incoming Request =====`);
   console.log(`Method: ${request.method}`);
-  console.log(`Origin: ${origin || 'none'}`);
+  console.log(`Origin: ${origin || "none"}`);
   console.log(`Path: ${url.pathname}`);
   console.log(`Query: ${JSON.stringify(Object.fromEntries(url.searchParams))}`);
 
@@ -180,10 +204,13 @@ async function handleRequest(
 
     if (!targetPath) {
       console.log(`[${timestamp}] ERROR: Missing target path`);
-      return new Response("Missing target path. Use ?path=/StudentPortalAPI/... or /proxy/StudentPortalAPI/...", {
-        status: 400,
-        headers: getCorsHeaders(origin, allowedOrigins),
-      });
+      return new Response(
+        "Missing target path. Use ?path=/StudentPortalAPI/... or /proxy/StudentPortalAPI/...",
+        {
+          status: 400,
+          headers: getCorsHeaders(origin, allowedOrigins),
+        },
+      );
     }
 
     const targetUrl = buildTargetUrl(apiBase, targetPath);
@@ -192,26 +219,38 @@ async function handleRequest(
     // Validate it's a JIIT URL (security check)
     if (!isValidJiitUrl(targetUrl, apiBase)) {
       console.log(`[${timestamp}] ERROR: Invalid JIIT URL - ${targetUrl}`);
-      return new Response("Invalid target URL. Only JIIT API endpoints are allowed.", {
-        status: 403,
-        headers: getCorsHeaders(origin, allowedOrigins),
-      });
+      return new Response(
+        "Invalid target URL. Only JIIT API endpoints are allowed.",
+        {
+          status: 403,
+          headers: getCorsHeaders(origin, allowedOrigins),
+        },
+      );
     }
 
     // Prepare headers for the proxied request
     const proxyHeaders = new Headers();
-    proxyHeaders.set("Content-Type", request.headers.get("Content-Type") || "application/json");
+    proxyHeaders.set(
+      "Content-Type",
+      request.headers.get("Content-Type") || "application/json",
+    );
     const upstreamBase = new URL(apiBase);
     const upstreamOrigin = `${upstreamBase.protocol}//${upstreamBase.host}`;
     proxyHeaders.set("Origin", upstreamOrigin);
     proxyHeaders.set("Referer", `${upstreamOrigin}/`);
-    proxyHeaders.set("User-Agent", request.headers.get("User-Agent") || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+    proxyHeaders.set(
+      "User-Agent",
+      request.headers.get("User-Agent") ||
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    );
 
     // Forward custom headers
     if (request.headers.has("Authorization")) {
       const authHeader = request.headers.get("Authorization")!;
       proxyHeaders.set("Authorization", authHeader);
-      console.log(`Authorization header present: ${authHeader.substring(0, 20)}...`);
+      console.log(
+        `Authorization header present: ${authHeader.substring(0, 20)}...`,
+      );
     }
     if (request.headers.has("LocalName")) {
       const localName = request.headers.get("LocalName")!;
@@ -236,7 +275,9 @@ async function handleRequest(
     console.log(`[${timestamp}] ===== Upstream Request =====`);
     console.log(JSON.stringify(upstreamRequestLog, null, 2));
 
-    console.log(`[${timestamp}] Forwarding to JIIT API (timeout ${upstreamTimeoutMs}ms)...`);
+    console.log(
+      `[${timestamp}] Forwarding to JIIT API (timeout ${upstreamTimeoutMs}ms)...`,
+    );
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -283,7 +324,7 @@ async function handleRequest(
 
     // Forward response headers (except CORS-related ones)
     for (const [key, value] of response.headers.entries()) {
-      if (!key.toLowerCase().startsWith('access-control-')) {
+      if (!key.toLowerCase().startsWith("access-control-")) {
         proxyResponse.headers.set(key, value);
       }
     }
@@ -292,21 +333,30 @@ async function handleRequest(
     return proxyResponse;
   } catch (error) {
     console.error(`[${timestamp}] ===== Proxy Error =====`);
-    console.error(JSON.stringify({
-      timestamp: new Date().toISOString(),
-      error: serializeError(error),
-      note: "Error during upstream fetch or proxy handling",
-    }, null, 2));
+    console.error(
+      JSON.stringify(
+        {
+          timestamp: new Date().toISOString(),
+          error: serializeError(error),
+          note: "Error during upstream fetch or proxy handling",
+        },
+        null,
+        2,
+      ),
+    );
     console.error(`===== End Error =====\n`);
 
     const isTimeout =
       (error instanceof DOMException && error.name === "AbortError") ||
       (error instanceof Error && error.message.includes("timeout"));
 
-    return new Response(`Proxy error: ${error instanceof Error ? error.message : "Unknown error"}`, {
-      status: isTimeout ? 504 : 502,
-      headers: getCorsHeaders(origin, allowedOrigins),
-    });
+    return new Response(
+      `Proxy error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      {
+        status: isTimeout ? 504 : 502,
+        headers: getCorsHeaders(origin, allowedOrigins),
+      },
+    );
   }
 }
 
@@ -314,32 +364,41 @@ async function handleRequest(
  * Main request handler
  */
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const url = new URL(request.url);
-    const { JIIT_API_BASE, ALLOWED_ORIGINS, UPSTREAM_TIMEOUT_MS } = getConfig(env);
+    const { JIIT_API_BASE, ALLOWED_ORIGINS, UPSTREAM_TIMEOUT_MS } =
+      getConfig(env);
 
     // Handle root path - return info page
     if (url.pathname === "/" || url.pathname === "") {
       console.log(`[${new Date().toISOString()}] Info page accessed`);
       return new Response(
-        JSON.stringify({
-          service: "JIIT Web Portal CORS Proxy",
-          version: "2.0.0",
-          usage: {
-            method1: "/proxy?path=/StudentPortalAPI/endpoint",
-            method2: "/proxy/StudentPortalAPI/endpoint",
-          },
-          allowedOrigins: ALLOWED_ORIGINS,
+        JSON.stringify(
+          {
+            service: "JIIT Web Portal CORS Proxy",
+            version: "2.0.0",
+            usage: {
+              method1: "/proxy?path=/StudentPortalAPI/endpoint",
+              method2: "/proxy/StudentPortalAPI/endpoint",
+            },
+            allowedOrigins: ALLOWED_ORIGINS,
             targetApi: JIIT_API_BASE,
             upstreamTimeoutMs: UPSTREAM_TIMEOUT_MS,
             note: "Cloudflare Worker version",
             status: "ACTIVE",
-        }, null, 2),
+          },
+          null,
+          2,
+        ),
         {
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
     }
 
@@ -366,8 +425,17 @@ export default {
 
     // Handle proxy requests
     if (url.pathname.startsWith("/proxy")) {
-      if (request.method === "GET" || request.method === "HEAD" || request.method === "POST") {
-        return handleRequest(request, JIIT_API_BASE, ALLOWED_ORIGINS, UPSTREAM_TIMEOUT_MS);
+      if (
+        request.method === "GET" ||
+        request.method === "HEAD" ||
+        request.method === "POST"
+      ) {
+        return handleRequest(
+          request,
+          JIIT_API_BASE,
+          ALLOWED_ORIGINS,
+          UPSTREAM_TIMEOUT_MS,
+        );
       } else {
         return new Response(null, {
           status: 405,
@@ -377,7 +445,9 @@ export default {
     }
 
     // 404 for unknown paths
-    console.log(`[${new Date().toISOString()}] 404 Not Found: ${request.method} ${url.pathname}`);
+    console.log(
+      `[${new Date().toISOString()}] 404 Not Found: ${request.method} ${url.pathname}`,
+    );
     return new Response("Not Found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;

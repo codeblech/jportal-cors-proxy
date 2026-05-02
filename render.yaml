@@ -14,4 +14,4 @@ services:
       - key: JIIT_API_BASE
         value: https://webportal.jiit.ac.in:6011
       - key: ALLOWED_ORIGINS
-        value: https://yashmalik.tech,https://codeblech.github.io,http://localhost:5173,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:4173,https://jmut.de
+        value: https://yashmalik.tech,https://codeblech.github.io,http://localhost:5173,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:4173,https://jmut.de,https://jportal.jmut.de
